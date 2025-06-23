@@ -71,6 +71,8 @@ export function SchemaManagement() {
 
       setSchemaName("")
       setSchemaContent("")
+
+      alert(`Schema "${schemaName}" uploaded successfully and saved to browser storage!`)
     } catch (error) {
       alert("Invalid JSON format. Please check your schema.")
     }

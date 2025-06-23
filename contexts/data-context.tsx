@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, type ReactNode } from "react"
+import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 
 export interface Schema {
   id: string
@@ -55,10 +55,86 @@ interface DataContextType {
 
 const DataContext = createContext<DataContextType | undefined>(undefined)
 
+// LocalStorage keys
+const STORAGE_KEYS = {
+  SCHEMAS: "data-dashboard-schemas",
+  RELATIONSHIPS: "data-dashboard-relationships",
+  LOADED_DATA: "data-dashboard-loaded-data",
+}
+
+// Helper functions for localStorage operations
+const loadFromStorage = (key: string, defaultValue: any): any => {
+  if (typeof window === "undefined") return defaultValue
+
+  try {
+    const stored = localStorage.getItem(key)
+    if (!stored) return defaultValue
+
+    const parsed = JSON.parse(stored)
+
+    // Handle Date objects in schemas
+    if (key === STORAGE_KEYS.SCHEMAS && Array.isArray(parsed)) {
+      return parsed.map((schema) => ({
+        ...schema,
+        createdAt: new Date(schema.createdAt),
+      }))
+    }
+
+    return parsed
+  } catch (error) {
+    console.error(`Error loading from localStorage key ${key}:`, error)
+    return defaultValue
+  }
+}
+
+const saveToStorage = (key: string, data: any): void => {
+  if (typeof window === "undefined") return
+
+  try {
+    localStorage.setItem(key, JSON.stringify(data))
+  } catch (error) {
+    console.error(`Error saving to localStorage key ${key}:`, error)
+  }
+}
+
 export function DataProvider({ children }: { children: ReactNode }) {
   const [schemas, setSchemas] = useState<Schema[]>([])
   const [relationships, setRelationships] = useState<Relationship[]>([])
   const [loadedData, setLoadedData] = useState<LoadedData[]>([])
+  const [isLoaded, setIsLoaded] = useState(false)
+
+  // Load data from localStorage on mount
+  useEffect(() => {
+    const loadedSchemas = loadFromStorage(STORAGE_KEYS.SCHEMAS, [])
+    const loadedRelationships = loadFromStorage(STORAGE_KEYS.RELATIONSHIPS, [])
+    const loadedDatasets = loadFromStorage(STORAGE_KEYS.LOADED_DATA, [])
+
+    setSchemas(loadedSchemas)
+    setRelationships(loadedRelationships)
+    setLoadedData(loadedDatasets)
+    setIsLoaded(true)
+  }, [])
+
+  // Save schemas to localStorage whenever they change
+  useEffect(() => {
+    if (isLoaded) {
+      saveToStorage(STORAGE_KEYS.SCHEMAS, schemas)
+    }
+  }, [schemas, isLoaded])
+
+  // Save relationships to localStorage whenever they change
+  useEffect(() => {
+    if (isLoaded) {
+      saveToStorage(STORAGE_KEYS.RELATIONSHIPS, relationships)
+    }
+  }, [relationships, isLoaded])
+
+  // Save loaded data to localStorage whenever it changes
+  useEffect(() => {
+    if (isLoaded) {
+      saveToStorage(STORAGE_KEYS.LOADED_DATA, loadedData)
+    }
+  }, [loadedData, isLoaded])
 
   const addSchema = (schema: Omit<Schema, "id" | "createdAt">) => {
     const newSchema: Schema = {
@@ -71,7 +147,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const removeSchema = (id: string) => {
     setSchemas((prev) => prev.filter((s) => s.id !== id))
+    // Also remove related relationships and loaded data
     setRelationships((prev) => prev.filter((r) => r.sourceField.schemaId !== id && r.targetField.schemaId !== id))
+    setLoadedData((prev) => prev.filter((d) => d.schemaId !== id))
   }
 
   const addRelationship = (relationship: Omit<Relationship, "id">) => {
@@ -100,6 +178,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const clearLoadedData = () => {
     setLoadedData([])
+  }
+
+  // Don't render until data is loaded from localStorage
+  if (!isLoaded) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+          <p className="text-muted-foreground">Loading data...</p>
+        </div>
+      </div>
+    )
   }
 
   return (

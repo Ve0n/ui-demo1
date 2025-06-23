@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import ReactFlow, {
   type Node,
   type Edge,
@@ -100,10 +100,10 @@ function RelationshipManagerContent() {
   }, [relationships, setEdges])
 
   // Initialize when schemas change
-  useState(() => {
+  useEffect(() => {
     initializeNodes()
     initializeEdges()
-  })
+  }, [schemas, relationships, initializeNodes, initializeEdges])
 
   const onConnect = useCallback((params: Connection) => {
     const sourceField = findFieldByNodeId(params.source!)
